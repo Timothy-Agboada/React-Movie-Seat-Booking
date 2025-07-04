@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Day 25: React Movie Seat Booking</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+</head>
+<body class="bg-gray-800 flex items-center justify-center min-h-screen p-4 font-sans">
+
+    <div id="root"></div>
+
+    <script type="text/babel">
+
+        // --- Mock Data & Initial Setup ---
+        const movies = [
+            { name: 'Avengers: Endgame', price: 10 },
+            { name: 'Joker', price: 12 },
+            { name: 'Toy Story 4', price: 8 },
+            { name: 'The Lion King', price: 9 }
+        ];
+
+        const initialSeats = Array(48).fill(null).map((_, index) => {
+            const isOccupied = Math.random() < 0.2; // 20% chance of being occupied
+            return { id: index, isOccupied };
+        });
+
+        // --- Child Components ---
+        const MovieSelect = ({ movies, selectedMovie, onMovieChange }) => (
+            <div className="mb-6">
+                <label htmlFor="movie" className="text-gray-400 mr-3">Pick a movie:</label>
+                <select 
+                    id="movie"
+                    value={selectedMovie.name}
+                    onChange={onMovieChange}
+                    className="bg-gray-700 text-white p-2 rounded-md"
+                >
+                    {movies.map(movie => (
+                        <option key={movie.name} value={movie.name}>{movie.name} (${movie.price})</option>
+                    ))}
+                </select>
+            </div>
+        );
+
+        const Seat = ({ isSelected, isOccupied, onClick }) => {
+            let seatClass = 'w-6 h-6 md:w-8 md:h-8 bg-gray-600 rounded-md cursor-pointer hover:bg-gray-500';
+            if (isSelected) {
+                seatClass = 'w-6 h-6 md:w-8 md:h-8 bg-blue-500 rounded-md cursor-pointer';
+            } else if (isOccupied) {
+                seatClass = 'w-6 h-6 md:w-8 md:h-8 bg-gray-400 rounded-md cursor-not-allowed';
+            }
+            return <div className={seatClass} onClick={onClick}></div>;
+        };
+        
+        const Legend = () => (
+            <ul className="flex justify-center gap-6 my-6 text-sm">
+                <li className="flex items-center gap-2"><div className="w-4 h-4 bg-gray-600 rounded-md"></div><span>N/A</span></li>
+                <li className="flex items-center gap-2"><div className="w-4 h-4 bg-blue-500 rounded-md"></div><span>Selected</span></li>
+                <li className="flex items-center gap-2"><div className="w-4 h-4 bg-gray-400 rounded-md"></div><span>Occupied</span></li>
+            </ul>
+        );
+
+        // --- Main App Component ---
+        const App = () => {
+            const [seats, setSeats] = React.useState(initialSeats);
+            const [selectedSeats, setSelectedSeats] = React.useState([]);
+            const [selectedMovie, setSelectedMovie] = React.useState(movies[0]);
+            
+            // --- Load state from localStorage on initial render ---
+            React.useEffect(() => {
+                const storedSelectedSeats = JSON.parse(localStorage.getItem('selectedSeats'));
+                const storedMovieName = localStorage.getItem('selectedMovieName');
+
+                if (storedSelectedSeats) {
+                    setSelectedSeats(storedSelectedSeats);
+                }
+                if (storedMovieName) {
+                    const movie = movies.find(m => m.name === storedMovieName);
+                    if (movie) setSelectedMovie(movie);
+                }
+            }, []);
+
+            // --- Save state to localStorage whenever it changes ---
+            React.useEffect(() => {
+                localStorage.setItem('selectedSeats', JSON.stringify(selectedSeats));
+                localStorage.setItem('selectedMovieName', selectedMovie.name);
+            }, [selectedSeats, selectedMovie]);
+
+            const handleSeatClick = (seatId) => {
+                const seat = seats.find(s => s.id === seatId);
+                if (seat.isOccupied) return;
+
+                const isSelected = selectedSeats.includes(seatId);
+                if (isSelected) {
+                    // Deselect: remove from array
+                    setSelectedSeats(currentSeats => currentSeats.filter(id => id !== seatId));
+                } else {
+                    // Select: add to array
+                    setSelectedSeats(currentSeats => [...currentSeats, seatId]);
+                }
+            };
+            
+            const handleMovieChange = (e) => {
+                const movie = movies.find(m => m.name === e.target.value);
+                setSelectedMovie(movie);
+            };
+
+            const totalSelected = selectedSeats.length;
+            const totalPrice = totalSelected * selectedMovie.price;
+
+            return (
+                <div className="text-white flex flex-col items-center">
+                    <MovieSelect movies={movies} selectedMovie={selectedMovie} onMovieChange={handleMovieChange} />
+                    
+                    <div className="perspective-container w-full max-w-lg">
+                        <div className="screen bg-white h-16 md:h-24 rounded-t-xl mb-8 transform rotate-x-[-45deg] shadow-lg shadow-white/20"></div>
+                    </div>
+
+                    <div className="grid grid-cols-8 gap-2 md:gap-4 mb-6">
+                        {seats.map(seat => (
+                            <Seat
+                                key={seat.id}
+                                isSelected={selectedSeats.includes(seat.id)}
+                                isOccupied={seat.isOccupied}
+                                onClick={() => handleSeatClick(seat.id)}
+                            />
+                        ))}
+                    </div>
+
+                    <Legend />
+
+                    <p className="text-lg">
+                        You have selected <span className="font-bold text-blue-400">{totalSelected}</span> seats for a price of <span className="font-bold text-blue-400">${totalPrice.toFixed(2)}</span>
+                    </p>
+                </div>
+            );
+        };
+
+        // --- Custom CSS for perspective effect ---
+        const style = document.createElement('style');
+        style.innerHTML = `
+            .perspective-container {
+                perspective: 1000px;
+            }
+            .screen {
+                transform-style: preserve-3d;
+            }
+        `;
+        document.head.appendChild(style);
+
+
+        // --- Rendering the App ---
+        const container = document.getElementById('root');
+        const root = ReactDOM.createRoot(container);
+        root.render(<App />);
+    </script>
+
+</body>
+</html>
